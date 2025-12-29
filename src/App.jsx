@@ -7,6 +7,8 @@ import { Node } from './components/canvas/Node'
 import { FloatingSphere } from './components/canvas/FloatingSphere'
 import './App.css'
 
+import { EffectComposer, Bloom } from '@react-three/postprocessing'
+
 function App() {
   const [pods, setPods] = useState([
     { id: 1, name: 'nginx-1', status: 'Running', position: [-2, 0, -2], hp: 5, lastHit: 0 },
@@ -79,6 +81,14 @@ function App() {
             </Node>
         </Suspense>
 
+        <EffectComposer disableNormalPass>
+            <Bloom 
+                luminanceThreshold={0.2} 
+                mipmapBlur 
+                intensity={0.5} 
+                radius={0.5} 
+            />
+        </EffectComposer>
       </Canvas>
     </>
   )
