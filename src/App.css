@@ -1,0 +1,63 @@
+.ui-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* Let clicks pass through to the 3D canvas */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start; /* Align to Top */
+  align-items: flex-end;     /* Align to Right */
+  padding: 2rem;             /* spacing from edge */
+  box-sizing: border-box;
+  z-index: 10;
+  color: white;
+  text-align: center;
+}
+
+.title {
+  font-size: 5rem;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  margin: 0;
+  background: linear-gradient(to right, #ffffff, #a5a5a5);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  pointer-events: auto;
+}
+
+.subtitle {
+  font-size: 1.5rem;
+  font-weight: 300;
+  margin-top: 1rem;
+  color: #cccccc;
+  pointer-events: auto;
+}
+
+.add-btn {
+  pointer-events: auto;
+  /* margin-top removed */
+  padding: 0.8rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  background-color: white;
+  color: #333;
+  border: none;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.add-btn:hover {
+  background-color: #f3f4f6;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.add-btn:active {
+  transform: translateY(0);
+}
