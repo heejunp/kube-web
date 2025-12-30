@@ -9,9 +9,9 @@ import './App.css'
 
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 
-// Use environment variable or fallback to localhost for local dev
-// For K8s deployment, VITE_API_URL should be set to: http://web-go.default.svc.cluster.local:8080/api/pods
-const API_URL = import.meta.env.VITE_API_URL || 'https//www.heejunp.com/api/pods'
+// Use environment variable or fallback to specific domain
+// Note: Ensure the server at this URL proxies /api requests to the Go backend, otherwise it returns index.html
+const API_URL = import.meta.env.VITE_API_URL || 'https://www.heejunp.com/api/pods'
 
 function App() {
   const [pods, setPods] = useState([])
