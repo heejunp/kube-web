@@ -9,10 +9,9 @@ import './App.css'
 
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 
-// Use environment variable or fallback to Kubernetes Service DNS format
-// Format: http://<service-name>.<namespace>.svc.cluster.local:<port>/api/pods
-// For local testing, we might want to keep a fallback or let user set env in Docker
-const API_URL = import.meta.env.VITE_API_URL || 'http://web-go.default.svc.cluster.local:8080/api/pods'
+// Use environment variable or fallback to localhost for local dev
+// For K8s deployment, VITE_API_URL should be set to: http://web-go.default.svc.cluster.local:8080/api/pods
+const API_URL = import.meta.env.VITE_API_URL || 'https//www.heejunp.com/api/pods'
 
 function App() {
   const [pods, setPods] = useState([])
