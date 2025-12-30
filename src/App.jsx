@@ -1,4 +1,4 @@
-import React, { Suspense, useState, useCallback } from 'react'
+import React, { Suspense, useState, useCallback, useEffect } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { GrassField } from './components/canvas/GrassField'
@@ -9,42 +9,76 @@ import './App.css'
 
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 
+// Use environment variable or fallback to Kubernetes Service DNS format
+// Format: http://<service-name>.<namespace>.svc.cluster.local:<port>/api/pods
+// For local testing, we might want to keep a fallback or let user set env in Docker
+const API_URL = import.meta.env.VITE_API_URL || 'http://web-go.default.svc.cluster.local:8080/api/pods'
+
 function App() {
-  const [pods, setPods] = useState([
-    { id: 1, name: 'nginx-1', status: 'Running', position: [-2, 0, -2], hp: 5, lastHit: 0 },
-    { id: 2, name: 'redis-1', status: 'Pending', position: [2, 0, -2], hp: 5, lastHit: 0 },
-    { id: 3, name: 'api-svr', status: 'Failed',  position: [-2, 0, 2], hp: 5, lastHit: 0 },
-    { id: 4, name: 'test-target', status: 'Running', position: [2, 0, 2], hp: 5, lastHit: 0 },
-  ])
+  const [pods, setPods] = useState([])
+
+  // Fetch initial pods
+  useEffect(() => {
+    fetch(API_URL)
+        .then(res => res.json())
+        .then(data => {
+            // Ensure data has necessary UI state props not in DB if needed (e.g. lastHit)
+            // Backend provides id, name, status, hp, position
+            // We map them to ensure position is array and defaults exist
+            const formatted = (data || []).map(p => ({
+                ...p,
+                lastHit: 0 
+            }))
+            setPods(formatted)
+        })
+        .catch(err => console.error("Failed to fetch pods:", err))
+  }, [])
 
   const addPod = useCallback(() => {
-    const id = Date.now()
-    const statuses = ['Running', 'Pending', 'Failed']
-    const randomStatus = statuses[Math.floor(Math.random() * statuses.length)]
-    const randomPos = [
-      (Math.random() - 0.5) * 6, 
-      0, 
-      (Math.random() - 0.5) * 6
-    ]
-    setPods(prev => [...prev, { 
-        id, 
-        name: `pod-${id.toString().slice(-4)}`, 
-        status: randomStatus, 
-        position: randomPos,
-        hp: 5,
-        lastHit: 0
-    }])
+    // Optimistic UI update or wait for server? Let's wait for server for consistency or optimistic.
+    // Let's do simple fetch for now.
+    fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}) // Let backend handle random gen
+    })
+    .then(res => res.json())
+    .then(newPod => {
+        setPods(prev => [...prev, { ...newPod, lastHit: 0 }])
+    })
+    .catch(err => console.error("Failed to add pod:", err))
   }, [])
 
   const handleAttack = useCallback((id) => {
+    // Find current HP to determine if we need to DELETE or PATCH
     setPods(prev => {
-        return prev.map(p => {
-            if (p.id === id) {
-                const newHp = p.hp - 1
-                return { ...p, hp: newHp, lastHit: Date.now() }
-            }
-            return p
-        }).filter(p => p.hp > 0)
+        const target = prev.find(p => p.id === id)
+        if (!target) return prev
+
+        const newHp = target.hp - 1
+        
+        if (newHp <= 0) {
+            // Trigger Delete API
+            fetch(`${API_URL}/${id}`, { method: 'DELETE' })
+                .catch(err => console.error("Failed to delete pod:", err))
+            
+            return prev.filter(p => p.id !== id)
+        } else {
+            // Trigger Patch API
+            fetch(`${API_URL}/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hp: newHp })
+            }).catch(err => console.error("Failed to patch pod:", err))
+
+            // Update local state
+            return prev.map(p => {
+                if (p.id === id) {
+                    return { ...p, hp: newHp, lastHit: Date.now() }
+                }
+                return p
+            })
+        }
     })
   }, [])
 
