@@ -9,47 +9,62 @@ import './App.css'
 
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 
-// Use environment variable or fallback to specific domain
-// Note: Ensure the server at this URL proxies /api requests to the Go backend, otherwise it returns index.html
-const API_URL = import.meta.env.VITE_API_URL || 'https://www.heejunp.com/api/pods'
+const WS_URL = import.meta.env.VITE_WS_URL
+  ? import.meta.env.VITE_WS_URL
+  : (import.meta.env.MODE === 'production'
+    ? 'wss://bridge.heejunp.com/ws'
+    : 'ws://localhost:9090/ws');
 
 function App() {
   const [pods, setPods] = useState([])
+  const ws = React.useRef(null)
 
-  // Fetch initial pods
+  // WebSocket Connection
   useEffect(() => {
-    fetch(API_URL)
-        .then(res => res.json())
-        .then(data => {
-            // Ensure data has necessary UI state props not in DB if needed (e.g. lastHit)
-            // Backend provides id, name, status, hp, position
-            // We map them to ensure position is array and defaults exist
-            const formatted = (data || []).map(p => ({
-                ...p,
-                lastHit: 0 
-            }))
-            setPods(formatted)
+    ws.current = new WebSocket(WS_URL)
+    
+    ws.current.onopen = () => {
+        console.log("Connected to Bridge Server")
+    }
+
+    ws.current.onmessage = (event) => {
+        const msg = JSON.parse(event.data)
+        // Message format: { type: "ADDED"|"MODIFIED"|"DELETED", id, ... }
+
+        setPods(prev => {
+            if (msg.type === "DELETED") {
+                return prev.filter(p => p.id !== msg.id)
+            }
+            
+            // ADDED or MODIFIED
+            const exists = prev.find(p => p.id === msg.id)
+            
+            if (exists) {
+                // Update existing
+                return prev.map(p => p.id === msg.id ? { ...p, ...msg, lastHit: p.lastHit } : p)
+            } else {
+                // Add new
+                return [...prev, { ...msg, lastHit: 0 }]
+            }
         })
-        .catch(err => console.error("Failed to fetch pods:", err))
+    }
+
+    return () => {
+        if (ws.current) ws.current.close()
+    }
   }, [])
 
   const addPod = useCallback(() => {
-    // Optimistic UI update or wait for server? Let's wait for server for consistency or optimistic.
-    // Let's do simple fetch for now.
-    fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}) // Let backend handle random gen
-    })
-    .then(res => res.json())
-    .then(newPod => {
-        setPods(prev => [...prev, { ...newPod, lastHit: 0 }])
-    })
-    .catch(err => console.error("Failed to add pod:", err))
+    // Ideally send command to bridge, but for now our backend auto-creates specific loop
+    // or we can invoke POST api directly. But requirement says "Bridge to API".
+    // For this step, we rely on Backend's Auto-Healing or direct interaction.
+    // Let's create a temporary fetch to legacy API just to trigger creation if needed,
+    // OR we can rely on the fact that user just wants to see 're-creation' via auto-healing.
+    // We'll leave this button functional via Legacy HTTP for now as 'trigger'.
+    fetch('http://localhost:8080/api/pods', { method: 'POST' })
   }, [])
 
   const handleAttack = useCallback((id) => {
-    // Find current HP to determine if we need to DELETE or PATCH
     setPods(prev => {
         const target = prev.find(p => p.id === id)
         if (!target) return prev
@@ -57,27 +72,26 @@ function App() {
         const newHp = target.hp - 1
         
         if (newHp <= 0) {
-            // Trigger Delete API
-            fetch(`${API_URL}/${id}`, { method: 'DELETE' })
-                .catch(err => console.error("Failed to delete pod:", err))
-            
-            return prev.filter(p => p.id !== id)
-        } else {
-            // Trigger Patch API
-            fetch(`${API_URL}/${id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ hp: newHp })
-            }).catch(err => console.error("Failed to patch pod:", err))
-
-            // Update local state
-            return prev.map(p => {
-                if (p.id === id) {
-                    return { ...p, hp: newHp, lastHit: Date.now() }
-                }
-                return p
-            })
-        }
+            // Send Kill Command via WebSocket
+            if (ws.current) {
+                ws.current.send(JSON.stringify({
+                    action: 'kill',
+                    podId: id
+                }))
+            }
+            // Optimistic Remove or wait for DELETED event? 
+            // Better wait for DELETED event for 'real' feel, but for game loop responsive,
+            // we can mark it as dying. Let's just update HP for now.
+             return prev.filter(p => p.id !== id) // Remove immediately for responsiveness
+        } 
+        
+        // Just visual HP update (Local)
+        return prev.map(p => {
+            if (p.id === id) {
+                return { ...p, hp: newHp, lastHit: Date.now() }
+            }
+            return p
+        })
     })
   }, [])
 
